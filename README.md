@@ -3,7 +3,7 @@
 More documentation/screenshots will be added over time as time allows.
 
 Begin Step
-![image](https://user-images.githubusercontent.com/13382869/83173523-1f39e980-a0e7-11ea-8651-5bad99ed1af4.png)
+![image](https://user-images.githubusercontent.com/13382869/83174385-552b9d80-a0e8-11ea-844e-4c2e26639793.png)
 
 End Step
-![image](https://user-images.githubusercontent.com/13382869/83173657-37116d80-a0e7-11ea-89c9-ffcfaf5e2028.png)
+![image](https://user-images.githubusercontent.com/13382869/83174437-6674aa00-a0e8-11ea-8ef0-f0f11a59a4be.png)
