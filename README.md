@@ -2,6 +2,8 @@
 
 More documentation/screenshots will be added over time as time allows.
 
-![image](https://user-images.githubusercontent.com/13382869/83094836-633dd780-a070-11ea-9796-07462736050f.png)
+Begin Step
+![image](https://user-images.githubusercontent.com/13382869/83173523-1f39e980-a0e7-11ea-8651-5bad99ed1af4.png)
 
-![image](https://user-images.githubusercontent.com/13382869/83090229-4e5c4680-a066-11ea-82eb-b5df00f6bdf7.png)
+End Step
+![image](https://user-images.githubusercontent.com/13382869/83173657-37116d80-a0e7-11ea-89c9-ffcfaf5e2028.png)
