@@ -107,6 +107,7 @@
   
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
+            [Alias('NTPServer')]
             [String]$NTPServerFQDN = "pool.ntp.org",
             
             [Parameter(Mandatory=$False)]
@@ -298,6 +299,9 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                         If ($IsWindowsPE -eq $True)
                           {
+                              $WarningMessage = "[WindowsPE Detected] - Additional file(s), system settings, and registry changes are required to allow time synchronization to occur."
+                              Write-Warning -Message "$($WarningMessage)" -Verbose
+                          
                               [System.IO.DirectoryInfo]$Path_w32tm = "$($ToolsDirectory.FullName)\w32tm"
                               $GetFiles_w32tm = Get-ChildItem -Path "$($Path_w32tm.FullName)" -Recurse -Force | Where-Object {($_ -is [System.IO.FileInfo])}
                             
@@ -329,6 +333,11 @@ ForEach ($ModuleGroup In $ModuleGroups)
                               Write-Verbose -Message "$($LogMessage)" -Verbose
                       
                               If ($CurrentTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
+                          }
+                        Else
+                          {
+                              $LogMessage = "[WindowsPE Not Detected] - No additional changes are required to allow time synchronization to occur."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                           }
                                            
                         $LogMessage = "Time Before NTP Synchronization: $((Get-Date).ToString($DateTimeLogFormat)) - [$($DestinationTimeZone.DisplayName)]"
