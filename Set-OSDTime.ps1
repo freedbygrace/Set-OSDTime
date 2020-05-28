@@ -1,55 +1,62 @@
-﻿<#
+﻿#Requires -Version 3
+
+<#
     .SYNOPSIS
-    A brief overview of what your function does
+    A script that can be used with Microsoft Deployment Toolkit or SCCM to allow for the collection, storage, and retrieval of deployment timestamps
           
     .DESCRIPTION
-    Slightly more detailed description of what your function does
+    Gets the timestamps corrected and standardized during deployment to avoid incorrect timestamps due to synchronization, WindowsPE default time zone issues, etc.
           
-    .PARAMETER ParameterName
-    Your parameter description
+    .PARAMETER OSDVariablePrefix
+    Any valid string that ends with an underscore will be used as the attribute prefix.
+    If you create a task sequence during operating system deployment and prefix the task sequence variable name with what is specified in this parameter, that task sequence variable will be dynamically detected by this script and included as part of information recorded within WMI or the registry without additional modification of this script.
+    This parameter will be validated using a regular expression to ensure that the string ends with an underscore and is formatted like the following. Example: "MyOSDVariablePrefix_"
 
-    .PARAMETER ParameterName
-    Your parameter description
+    .PARAMETER Start
+    Sets the script to start mode so that the starting timestamp can be created. This must be run FIRST as a prerequisite in order for the end mode to execute successfully. You have been warned!
 
-    .PARAMETER ParameterName
-    Your parameter description
+    .PARAMETER OSDVariableName_Start
+    The name of the task sequence variable that you want to contain the value of your deployment start time.
 
-    .PARAMETER ParameterName
-    Your parameter description
+    .PARAMETER End
+    Sets the script to start mode so that the ending timestamp can be created.
 
-    .PARAMETER ParameterName
-    Your parameter description
-
-    .PARAMETER ParameterName
-    Your parameter description
-
-    .PARAMETER ParameterName
-    Your parameter description
-
-    .PARAMETER ParameterName
-    Your parameter description
-
-    .PARAMETER ParameterName
-    Your parameter description
-
-    .PARAMETER ParameterName
-    Your parameter description
+    .PARAMETER OSDVariableName_End
+    The name of the task sequence variable that you want to contain the value of your deployment end time.
 
     .PARAMETER DestinationTimeZoneID
     A valid string. Specify a time zone ID that exists on the current system. Input will be validated against the list of time zones available on the system.
     All date/time operations within this script will converted the current system time to the destination timezone for standardization. That time will then be converted to UTC. The UTC time will then be converted to the WMI format and stored.
+
+    .PARAMETER PerformTimeSynchronization
+    Your parameter description
+
+    .PARAMETER NTPServerFQDN
+    The FQDN of the Network Time Protocol server (NTP)
+
+    .PARAMETER Services
+    Any relevant services that need to started during this operation. This will not really need to modified or specified in most cases. This parameter is only here for flexibility.
+
+    .PARAMETER LogDir
+    A valid folder path. If the folder does not exist, it will be created. This parameter can also be specified by the alias "LogPath".
+
+    .PARAMETER ContinueOnError
+    Ignore failures.
           
     .EXAMPLE
-    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\%ScriptName%.ps1"
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\Set-OSDTime.ps1" -Start -OSDVariablePrefix "CustomOSDInfo_" -$OSDVariableName_Start "OSDStartTime" -DestinationTimeZoneID "Eastern Standard Time" -SyncTime -LogDir "%_SMSTSLogPath%\Set-OSDTime"
 
     .EXAMPLE
-    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\%ScriptName%.ps1" -ScriptParameter "%ScriptParameterValue%"
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\Set-OSDTime.ps1" -End -OSDVariablePrefix "CustomOSDInfo_" -$OSDVariableName_Start "OSDEndTime" -DestinationTimeZoneID "Eastern Standard Time" -SyncTime -LogDir "%_SMSTSLogPath%\Set-OSDTime"
 
     .EXAMPLE
-    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\%ScriptName%.ps1" -SwitchParameter
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\Set-OSDTime.ps1" -SyncTime -Start
+
+    .EXAMPLE
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -File "%FolderPathContainingScript%\Set-OSDTime.ps1" -SyncTime -End
   
     .NOTES
-    Any useful tidbits
+    Another script will be released that will be able to take parts of this data and record it into the registry and into WMI (Look for Set-OSDInformation)
           
     .LINK
     www.powershellDistrict.com
@@ -58,13 +65,13 @@
     https://github.com/Stephanevg/Manage-OSDTime
 
     .LINK
-    https://github.com/freedbygrace/Manage-OSDTime/blob/patch-1/Manage-OSDTime.ps1
+    https://github.com/freedbygrace/Set-OSDTime
 
     .LINK
-    http://woshub.com/how-to-set-timezone-from-command-prompt-in-windows/
+    https://haralambos.wordpress.com/2018/08/14/time-sync-during-osd-in-winpe-mdt/
 
     .LINK
-    https://devblogs.microsoft.com/scripting/powertip-use-powershell-to-retrieve-the-date-and-time-of-the-given-time-zone-id/
+    https://www.windows-noob.com/forums/topic/11016-how-can-i-sync-the-bios-date-in-winpe-to-avoid-pxe-boot-failure-with-system-center-2012-r2-configuration-manager/page/2/
 #>
 
 [CmdletBinding()]
@@ -274,7 +281,7 @@ ForEach ($ModuleGroup In $ModuleGroups)
                 Write-Verbose -Message "$($LogMessage)" -Verbose
                 
                 #Usually a time synchronization is required from WindowsPE to avoid incorrect time stamps (The code below provides a method to address this issue by allowing the client to synchronize with a network time protocol (NTP) server)
-                  If (($PerformTimeSynchronization.IsPresent -eq $True) -and ($IsWindowsPE -eq $True))
+                  If (($PerformTimeSynchronization.IsPresent -eq $True))
                     {                      
                         $IsNTPServerOnline = Test-Connection -ComputerName "$($NTPServerFQDN)" -Count 1 -Quiet
                       
@@ -289,38 +296,41 @@ ForEach ($ModuleGroup In $ModuleGroups)
                               Write-Warning -Message "$($WarningMessage)" -Verbose
                           }
                             
-                        [System.IO.DirectoryInfo]$Path_w32tm = "$($ToolsDirectory.FullName)\w32tm"
-                        $GetFiles_w32tm = Get-ChildItem -Path "$($Path_w32tm.FullName)" -Recurse -Force | Where-Object {($_ -is [System.IO.FileInfo])}
-                            
-                        ForEach ($File In $GetFiles_w32tm)
+                        If ($IsWindowsPE -eq $True)
                           {
-                              If ($File.Directory.FullName.EndsWith("$($Path_w32tm.Name)") -eq $True)
+                              [System.IO.DirectoryInfo]$Path_w32tm = "$($ToolsDirectory.FullName)\w32tm"
+                              $GetFiles_w32tm = Get-ChildItem -Path "$($Path_w32tm.FullName)" -Recurse -Force | Where-Object {($_ -is [System.IO.FileInfo])}
+                            
+                              ForEach ($File In $GetFiles_w32tm)
                                 {
-                                    [System.IO.FileInfo]$DestinationPath = "$([System.Environment]::SystemDirectory)\$($File.Name)"
-                                }
-                              Else
-                                {
-                                    [System.IO.FileInfo]$DestinationPath = "$([System.Environment]::SystemDirectory)\$($File.Directory.Name)\$($File.Name)"
-                                }
+                                    If ($File.Directory.FullName.EndsWith("$($Path_w32tm.Name)") -eq $True)
+                                      {
+                                          [System.IO.FileInfo]$DestinationPath = "$([System.Environment]::SystemDirectory)\$($File.Name)"
+                                      }
+                                    Else
+                                      {
+                                          [System.IO.FileInfo]$DestinationPath = "$([System.Environment]::SystemDirectory)\$($File.Directory.Name)\$($File.Name)"
+                                      }
 
-                              If ($DestinationPath.Exists -eq $False)
-                                {
-                                    If ($DestinationPath.Directory.Exists -eq $False) {[Void][System.IO.Directory]::CreateDirectory($DestinationPath.Directory.FullName)}
-                                    Copy-Item -Path "$($File.FullName)" -Destination "$($DestinationPath.Directory.FullName)\" -Force -Verbose
+                                    If ($DestinationPath.Exists -eq $False)
+                                      {
+                                          If ($DestinationPath.Directory.Exists -eq $False) {[Void][System.IO.Directory]::CreateDirectory($DestinationPath.Directory.FullName)}
+                                          Copy-Item -Path "$($File.FullName)" -Destination "$($DestinationPath.Directory.FullName)\" -Force -Verbose
+                                      }
                                 }
-                          }
-                     
-                        New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxPosPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
-                        New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxNegPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
-                        
-                        $LogMessage = "Time Before Time Zone Adjustment: $((Get-Date).ToString($DateTimeLogFormat)) - [$($CurrentTimeZone.DisplayName)]"
-                        Write-Verbose -Message "$($LogMessage)" -Verbose
+                          
+                              New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxPosPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
+                              New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxNegPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
+                              
+                              $LogMessage = "Time Before Time Zone Adjustment: $((Get-Date).ToString($DateTimeLogFormat)) - [$($CurrentTimeZone.DisplayName)]"
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                     
-                        $LogMessage = "Attempting to change the current time zone to from `"$($CurrentTimeZone.DisplayName)`" to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
-                        Write-Verbose -Message "$($LogMessage)" -Verbose
+                              $LogMessage = "Attempting to change the current time zone from `"$($CurrentTimeZone.DisplayName)`" to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                        If ($CurrentTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
-                      
+                              If ($CurrentTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
+                          }
+                                           
                         $LogMessage = "Time Before NTP Synchronization: $((Get-Date).ToString($DateTimeLogFormat)) - [$($DestinationTimeZone.DisplayName)]"
                         Write-Verbose -Message "$($LogMessage)" -Verbose
                             
