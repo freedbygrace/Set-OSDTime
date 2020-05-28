@@ -427,7 +427,7 @@ ForEach ($ModuleGroup In $ModuleGroups)
                       
                       $TaskSequenceStartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"    
           
-                      $LogMessage = "Task sequence start time variable is now set to $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)]"
+                      $LogMessage = "The task sequence start time variable `"$($OSDVariableName_Start)`" is now set to $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - Variable value was formatted for logging purposes."
                       Write-Verbose -Message "$($LogMessage)" -Verbose   
                   }
                 ElseIf ($End.IsPresent -eq $True)
@@ -460,7 +460,7 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                             $TaskSequenceEndTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_End))"
                                 
-                            $LogMessage = "Task sequence end time variable is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)]"
+                            $LogMessage = "The task sequence end time variable `"$($OSDVariableName_End)`" is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - Variable value was formatted for logging purposes."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         }
                   }     
