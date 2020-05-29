@@ -26,7 +26,11 @@
 
     .PARAMETER DestinationTimeZoneID
     A valid string. Specify a time zone ID that exists on the current system. Input will be validated against the list of time zones available on the system.
-    All date/time operations within this script will converted the current system time to the destination timezone for standardization. That time will then be converted to UTC. The UTC time will then be converted to the WMI format and stored.
+    All date/time operations within this script will convert the current system time to the destination timezone for standardization.
+
+    .PARAMETER FinalConversionTimeZoneID
+    A valid string. Specify a time zone ID that exists on the current system. Input will be validated against the list of time zones available on the system.
+    All date/time operations within this script will convert the timestamps to the final conversion timezone ID. UTC by default.
 
     .PARAMETER PerformTimeSynchronization
     Your parameter description
@@ -95,20 +99,25 @@
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
             [String]$OSDVariableName_End = "$($OSDVariablePrefix)OSDEndTime",
+
+            [Parameter(Mandatory=$False)]
+            [Alias('SyncTime')]
+            [Switch]$PerformTimeSynchronization,
+
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullOrEmpty()]
+            [Alias('NTPServer')]
+            [String]$NTPServerFQDN = "pool.ntp.org",
             
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
             [ValidateScript({($_ -iin ([System.TimeZoneInfo]::GetSystemTimeZones().ID | Sort-Object))})]
             [String]$DestinationTimeZoneID = "Eastern Standard Time",
-            
-            [Parameter(Mandatory=$False)]
-            [Alias('SyncTime')]
-            [Switch]$PerformTimeSynchronization,
-  
+
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
-            [Alias('NTPServer')]
-            [String]$NTPServerFQDN = "pool.ntp.org",
+            [ValidateScript({($_ -iin ([System.TimeZoneInfo]::GetSystemTimeZones().ID | Sort-Object))})]
+            [String]$FinalConversionTimeZoneID = "UTC",
             
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
@@ -269,18 +278,14 @@ ForEach ($ModuleGroup In $ModuleGroups)
     {                          
         #Tasks defined within this block will only execute if a task sequence is running
           If (($IsRunningTaskSequence -eq $True))
-            {    
-                $CurrentTimeZone = Get-TimeZone
-                
+            {                    
+                $OriginalTimeZone = Get-TimeZone
                 $DestinationTimeZone = Get-TimeZone -ID "$($DestinationTimeZoneID)"
-                
-                $UTCTimeZone = Get-TimeZone -ID "UTC"
-                
-                $DateTimeLogFormat = 'dddd, MMMM dd, yyyy hh:mm:ss tt'  ###Monday, January 01, 2019 10:15:34 AM###
-    
-                $LogMessage = "The current time zone set in the operating system is `"$($CurrentTimeZone.DisplayName)`""
+                $FinalConversionTimeZone = Get-TimeZone -ID "$($FinalConversionTimeZoneID)"
+                                    
+                $LogMessage = "The current time zone set in the operating system is `"$($OriginalTimeZone.DisplayName)`""
                 Write-Verbose -Message "$($LogMessage)" -Verbose
-                
+ 
                 #Usually a time synchronization is required from WindowsPE to avoid incorrect time stamps (The code below provides a method to address this issue by allowing the client to synchronize with a network time protocol (NTP) server)
                   If (($PerformTimeSynchronization.IsPresent -eq $True))
                     {                      
@@ -299,8 +304,8 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                         If ($IsWindowsPE -eq $True)
                           {
-                              $WarningMessage = "[WindowsPE Detected] - Additional file(s), system settings, and registry changes are required to allow time synchronization to occur."
-                              Write-Warning -Message "$($WarningMessage)" -Verbose
+                              $LogMessage = "[WindowsPE Detected] - [Version: $($OperatingSystem.Version.ToString())] - Additional file(s), system settings, and registry changes are required to allow time synchronization to occur."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                           
                               [System.IO.DirectoryInfo]$Path_w32tm = "$($ToolsDirectory.FullName)\w32tm"
                               $GetFiles_w32tm = Get-ChildItem -Path "$($Path_w32tm.FullName)" -Recurse -Force | Where-Object {($_ -is [System.IO.FileInfo])}
@@ -326,17 +331,20 @@ ForEach ($ModuleGroup In $ModuleGroups)
                               New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxPosPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
                               New-RegistryItem -Key "HKLM:\Software\ControlSet001\Services\W32Time\Config" -ValueName "MaxNegPhaseCorrection" -Value "0xFFFFFFFF" -ValueType DWord -Verbose
                               
-                              $LogMessage = "Time Before Time Zone Adjustment: $((Get-Date).ToString($DateTimeLogFormat)) - [$($CurrentTimeZone.DisplayName)]"
+                              $LogMessage = "Time Before Time Zone Adjustment: $((Get-Date).ToString($DateTimeLogFormat)) - [$($OriginalTimeZone.DisplayName)]"
                               Write-Verbose -Message "$($LogMessage)" -Verbose
                     
-                              $LogMessage = "Attempting to change the current time zone from `"$($CurrentTimeZone.DisplayName)`" to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
+                              $LogMessage = "Attempting to change the current time zone from `"$($OriginalTimeZone.DisplayName)`" to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
                               Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                              If ($CurrentTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
+                              If ($OriginalTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
                           }
                         Else
                           {
                               $LogMessage = "[WindowsPE Not Detected] - No additional changes are required to allow time synchronization to occur."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
+
+                              $LogMessage = "[Current Operating System] - $($OperatingSystem.Caption -ireplace "(Microsoft)\s", '') [Version: $($OperatingSystem.Version.ToString())]"
                               Write-Verbose -Message "$($LogMessage)" -Verbose
                           }
                                            
@@ -396,6 +404,11 @@ ForEach ($ModuleGroup In $ModuleGroups)
                                 {
                                     $LogMessage = "Binary Execution Success - [Exit Code: $($ExecuteBinary.ExitCode.ToString())]"
                                     Write-Verbose -Message "$($LogMessage)" -Verbose
+
+                                    $BinaryStandardOutput = Get-Content -Path "$($BinaryStandardOutputPath.FullName)" -Raw -Force
+                                                  
+                                    $LogMessage = "Binary Standard Output - [$($BinaryPath.Name)]`r`n$($BinaryStandardOutput.ToString())"
+                                    Write-Verbose -Message "$($LogMessage)" -Verbose
    
                                     Stop-Service -Name ($Services) -Force -Verbose
                                         
@@ -414,18 +427,47 @@ ForEach ($ModuleGroup In $ModuleGroups)
                                 {
                                     $ErrorMessage = "Binary Execution Error - [Exit Code: $($ExecuteBinary.ExitCode.ToString())]"
                                     Write-Error -Message "$($ErrorMessage)" -Verbose
+
+                                    $BinaryErrorOutput = Get-Content -Path "$($BinaryStandardErrorPath.FullName)" -Raw -Force
+                                                  
+                                    $ErrorMessage = "Binary Error Output - [$($BinaryPath.Name)]`r`n$($BinaryErrorOutput.ToString())"
+                                    Write-Error -Message "$($ErrorMessage)" -Verbose
                                 }
                           }
                     }
                                       
                 If ($Start.IsPresent -eq $True)
                   {
+                      #Create Original Time Zone Variable
+                        $OSDOriginalTimeZoneIDVariableName = "$($OSDVariablePrefix)OSDOriginalTimeZoneID"
+                        
+                        $TSEnvironment.Value($OSDOriginalTimeZoneIDVariableName) = "$($OriginalTimeZone.ID)"
+                            
+                        $LogMessage = "The task sequence conversion time zone variable `"$($OSDOriginalTimeZoneIDVariableName)`" is now set to `"$($TSEnvironment.Value($OSDOriginalTimeZoneIDVariableName))`"."
+                        Write-Verbose -Message "$($LogMessage)" -Verbose
+
+                      #Create Destination Time Zone Variable
+                        $OSDDestinationTimeZoneIDVariableName = "$($OSDVariablePrefix)OSDDestinationTimeZoneID"
+                        
+                        $TSEnvironment.Value($OSDDestinationTimeZoneIDVariableName) = "$($DestinationTimeZone.ID)"
+                            
+                        $LogMessage = "The task sequence destination time zone variable `"$($OSDDestinationTimeZoneIDVariableName)`" is now set to `"$($TSEnvironment.Value($OSDDestinationTimeZoneIDVariableName))`"."
+                        Write-Verbose -Message "$($LogMessage)" -Verbose    
+                
+                      #Create Conversion Time Zone Variable
+                        $OSDConversionTimeZoneIDVariableName = "$($OSDVariablePrefix)OSDConversionTimeZoneID"
+                        
+                        $TSEnvironment.Value($OSDConversionTimeZoneIDVariableName) = "$($FinalConversionTimeZone.ID)"
+                            
+                        $LogMessage = "The task sequence conversion time zone variable `"$($OSDConversionTimeZoneIDVariableName)`" is now set to `"$($TSEnvironment.Value($OSDConversionTimeZoneIDVariableName))`"."
+                        Write-Verbose -Message "$($LogMessage)" -Verbose
+                      
                       $LogMessage = "Attempting to convert the current system time to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
                       Write-Verbose -Message "$($LogMessage)" -Verbose
                   
                       [DateTime]$ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
                       
-                      $LogMessage = "Attempting to convert the current system time into `"$($UTCTimeZone.DisplayName)`". Please Wait..."
+                      $LogMessage = "Attempting to convert the current system time into `"$($FinalConversionTimeZone.DisplayName)`". Please Wait..."
                       Write-Verbose -Message "$($LogMessage)" -Verbose
                       
                       [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
@@ -434,23 +476,25 @@ ForEach ($ModuleGroup In $ModuleGroups)
                       
                       $TSEnvironment.Value($OSDVariableName_Start) = $StartTime
                       
-                      [DateTime]$TaskSequenceStartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"    
+                      [DateTime]$TaskSequenceStartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"
           
-                      $LogMessage = "The task sequence start time variable `"$($OSDVariableName_Start)`" is now set to $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - Variable value was formatted for logging purposes."
+                      $LogMessage = "The task sequence start time variable `"$($OSDVariableName_Start)`" is now set to $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($FinalConversionTimeZone.DisplayName)] - The task sequence variable value was formatted for logging purposes."
                       Write-Verbose -Message "$($LogMessage)" -Verbose   
                   }
                 ElseIf ($End.IsPresent -eq $True)
                   { 
-                      [DateTime]$StartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"
-                
-                      If ([String]::IsNullOrEmpty($StartTime) -eq $True)
+                      $StartTime = $TSEnvironment.Value($OSDVariableName_Start)
+                      
+                      If ($StartTime -ieq $Null)
                         {
-                            $WarningMessage = "Could not find the Task sequence variable `"$($OSDVariableName_Start)`". Be sure that the variable has been set PRIOR this step by using the -START switch"
+                            $WarningMessage = "Could not find the Task sequence variable `"$($OSDVariableName_Start)`". The `"$($ScriptPath.Name)`" script needs to be executed at least one with the -Start switch. - [Example: $($ScriptPath.FullName) -Start]"
                             Write-Warning -Message "$($WarningMessage)" -Verbose
                         }
                       Else
                         {                
-                            $LogMessage = "The currently running task sequence was started on $($StartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)]"
+                            [DateTime]$TaskSequenceStartTime = Get-Date -Date "$($StartTime)"
+                            
+                            $LogMessage = "The currently running task sequence was started on $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($FinalConversionTimeZone.DisplayName)]."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                 
                             $LogMessage = "Attempting to convert the current system time to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
@@ -458,7 +502,7 @@ ForEach ($ModuleGroup In $ModuleGroups)
                   
                             [DateTime]$ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
                       
-                            $LogMessage = "Attempting to convert the current system time into `"$($UTCTimeZone.DisplayName)`". Please Wait..."
+                            $LogMessage = "Attempting to convert the current system time into `"$($FinalConversionTimeZone.DisplayName)`". Please Wait..."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                       
                             [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
@@ -469,22 +513,23 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                             [DateTime]$TaskSequenceEndTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_End))"
                                 
-                            $LogMessage = "The task sequence end time variable `"$($OSDVariableName_End)`" is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - The task sequence Variable value was formatted for logging purposes."
+                            $LogMessage = "The task sequence end time variable `"$($OSDVariableName_End)`" is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($FinalConversionTimeZone.DisplayName)] - The task sequence variable value was formatted for logging purposes."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
+                                                        
+                            #Total deployment time
+                              [Timespan]$TaskSequenceTotalTimespan = New-TimeSpan -Start ($StartTime) -End ($EndTime)
                             
-                            [Timespan]$TaskSequenceTotalTime = New-TimeSpan -Start ($StartTime) -End ($EndTime)
+                              [String]$TaskSequenceTotalTime = "$($TaskSequenceTotalTimespan.Hours.ToString()) hours, $($TaskSequenceTotalTimespan.Minutes.ToString()) minutes, $($TaskSequenceTotalTimespan.Seconds.ToString()) seconds, and $($TaskSequenceTotalTimespan.Milliseconds.ToString()) milliseconds"
                             
-                            $TaskSequenceTotalTime = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, and $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
-                            
-                            $OSDTotalTimeVariableName = "$($OSDVariablePrefix)OSDTotalTime"
+                              $OSDTotalTimeVariableName = "$($OSDVariablePrefix)OSDTotalTime"
                         
-                            $TSEnvironment.Value($OSDTotalTimeVariableName) = $TaskSequenceTotalTime
-                            
-                            $LogMessage = "The task sequence total time variable `"$($OSDTotalTimeVariableName)`" is now set to `"$($TSEnvironment.Value($OSDTotalTimeVariableName))`""
-                            Write-Verbose -Message "$($LogMessage)" -Verbose
+                              $TSEnvironment.Value($OSDTotalTimeVariableName) = $TaskSequenceTotalTime
+                                                        
+                              $LogMessage = "The task sequence total time variable `"$($OSDTotalTimeVariableName)`" is now set to `"$($TSEnvironment.Value($OSDTotalTimeVariableName))`"."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                         
-                            $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTime)] to complete."
-                            Write-Verbose -Message "$($LogMessage)" -Verbose
+                              $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTime)] to complete."
+                              Write-Verbose -Message "$($LogMessage)" -Verbose
                         }
                   }     
             }
