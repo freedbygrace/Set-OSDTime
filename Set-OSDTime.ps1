@@ -474,16 +474,16 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                             [Timespan]$TaskSequenceTotalTime = New-TimeSpan -Start ($StartTime) -End ($EndTime)
                             
-                            $TaskSequenceTotalTimeAsString = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, and $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
+                            $TaskSequenceTotalTime = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, and $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
                             
-                            $OSDTotalTimeAsStringVariableName = "$($OSDVariablePrefix)OSDTotalTimeAsString"
+                            $OSDTotalTimeVariableName = "$($OSDVariablePrefix)OSDTotalTime"
                         
-                            $TSEnvironment.Value($OSDTotalTimeAsStringVariableName) = $TaskSequenceTotalTimeAsString
+                            $TSEnvironment.Value($OSDTotalTimeVariableName) = $TaskSequenceTotalTime
                             
-                            $LogMessage = "The task sequence total time variable `"$($OSDTotalTimeAsStringVariableName)`" is now set to `"$($TSEnvironment.Value("OSDTotalTimeAsString"))`""
+                            $LogMessage = "The task sequence total time variable `"$($OSDTotalTimeVariableName)`" is now set to `"$($TSEnvironment.Value($OSDTotalTimeVariableName))`""
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         
-                            $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTimeAsString)] to complete."
+                            $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTime)] to complete."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         }
                   }     
