@@ -474,11 +474,14 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                             [Timespan]$TaskSequenceTotalTime = New-TimeSpan -Start ($StartTime) -End ($EndTime)
                             
-                            $TaskSequenceTotalTimeAsString = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
+                            $TaskSequenceTotalTimeAsString = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, and $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
                             
                             $TSEnvironment.Value("OSDTotalTimeAsString") = $TaskSequenceTotalTimeAsString
+                            
+                            $LogMessage = "The task sequence total time variable `"OSDTotalTimeAsString`" is now set to `"$($TSEnvironment.Value("OSDTotalTimeAsString"))`""
+                            Write-Verbose -Message "$($LogMessage)" -Verbose
                         
-                            $LogMessage = "The task sequence has taken $($TaskSequenceTotalTimeAsString) to complete."
+                            $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTimeAsString)] to complete."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         }
                   }     
