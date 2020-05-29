@@ -476,9 +476,11 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             
                             $TaskSequenceTotalTimeAsString = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, and $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
                             
-                            $TSEnvironment.Value("OSDTotalTimeAsString") = $TaskSequenceTotalTimeAsString
+                            $OSDTotalTimeAsStringVariableName = "$($OSDVariablePrefix)OSDTotalTimeAsString"
+                        
+                            $TSEnvironment.Value($OSDTotalTimeAsStringVariableName) = $TaskSequenceTotalTimeAsString
                             
-                            $LogMessage = "The task sequence total time variable `"OSDTotalTimeAsString`" is now set to `"$($TSEnvironment.Value("OSDTotalTimeAsString"))`""
+                            $LogMessage = "The task sequence total time variable `"$($OSDTotalTimeAsStringVariableName)`" is now set to `"$($TSEnvironment.Value("OSDTotalTimeAsString"))`""
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         
                             $LogMessage = "The task sequence has taken [$($TaskSequenceTotalTimeAsString)] to complete."
