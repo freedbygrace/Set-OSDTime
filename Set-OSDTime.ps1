@@ -423,25 +423,25 @@ ForEach ($ModuleGroup In $ModuleGroups)
                       $LogMessage = "Attempting to convert the current system time to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
                       Write-Verbose -Message "$($LogMessage)" -Verbose
                   
-                      $ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
+                      [DateTime]$ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
                       
                       $LogMessage = "Attempting to convert the current system time into `"$($UTCTimeZone.DisplayName)`". Please Wait..."
                       Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                      $ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
+                      [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
                   
-                      $StartTime = $ConvertedSystemDateTimeUTC
+                      [DateTime]$StartTime = $ConvertedSystemDateTimeUTC
                       
                       $TSEnvironment.Value($OSDVariableName_Start) = $StartTime
                       
-                      $TaskSequenceStartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"    
+                      [DateTime]$TaskSequenceStartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"    
           
                       $LogMessage = "The task sequence start time variable `"$($OSDVariableName_Start)`" is now set to $($TaskSequenceStartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - Variable value was formatted for logging purposes."
                       Write-Verbose -Message "$($LogMessage)" -Verbose   
                   }
                 ElseIf ($End.IsPresent -eq $True)
                   { 
-                      $StartTime = $TSEnvironment.Value($OSDVariableName_Start)
+                      [DateTime]$StartTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_Start))"
                 
                       If ([String]::IsNullOrEmpty($StartTime) -eq $True)
                         {
@@ -450,26 +450,35 @@ ForEach ($ModuleGroup In $ModuleGroups)
                         }
                       Else
                         {                
-                            $LogMessage = "The currently running task sequence was started at $($StartTime) - [$($UTCTimeZone.DisplayName)]"
+                            $LogMessage = "The currently running task sequence was started on $($StartTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)]"
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                 
                             $LogMessage = "Attempting to convert the current system time to `"$($DestinationTimeZone.DisplayName)`". Please Wait..."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                   
-                            $ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
+                            [DateTime]$ConvertedSystemDateTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), ($DestinationTimeZoneID))
                       
                             $LogMessage = "Attempting to convert the current system time into `"$($UTCTimeZone.DisplayName)`". Please Wait..."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                            $ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
+                            [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
                         
-                            $EndTime = $ConvertedSystemDateTimeUTC
+                            [DateTime]$EndTime = $ConvertedSystemDateTimeUTC
                             
                             $TSEnvironment.Value($OSDVariableName_End) = $EndTime
                             
-                            $TaskSequenceEndTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_End))"
+                            [DateTime]$TaskSequenceEndTime = Get-Date -Date "$($TSEnvironment.Value($OSDVariableName_End))"
                                 
-                            $LogMessage = "The task sequence end time variable `"$($OSDVariableName_End)`" is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - Variable value was formatted for logging purposes."
+                            $LogMessage = "The task sequence end time variable `"$($OSDVariableName_End)`" is now set to $($TaskSequenceEndTime.ToString($DateTimeLogFormat)) - [$($UTCTimeZone.DisplayName)] - The task sequence Variable value was formatted for logging purposes."
+                            Write-Verbose -Message "$($LogMessage)" -Verbose
+                            
+                            [Timespan]$TaskSequenceTotalTime = New-TimeSpan -Start ($StartTime) -End ($EndTime)
+                            
+                            $TaskSequenceTotalTimeAsString = "$($TaskSequenceTotalTime.Hours.ToString()) hours, $($TaskSequenceTotalTime.Minutes.ToString()) minutes, $($TaskSequenceTotalTime.Seconds.ToString()) seconds, $($TaskSequenceTotalTime.Milliseconds.ToString()) milliseconds"
+                            
+                            $TSEnvironment.Value("OSDTotalTimeAsString") = $TaskSequenceTotalTimeAsString
+                        
+                            $LogMessage = "The task sequence has taken $($TaskSequenceTotalTimeAsString) to complete."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                         }
                   }     
