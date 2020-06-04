@@ -84,6 +84,7 @@
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
             [ValidateScript({($_ -imatch '^.*\_$')})]
+            [Alias('OSDVP')]
             [String]$OSDVariablePrefix = "CustomOSDInfo_",
             
             [Parameter(Mandatory=$False)]
@@ -91,6 +92,7 @@
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
+            [Alias('OSDVN_Start')]
             [String]$OSDVariableName_Start = "$($OSDVariablePrefix)OSDStartTime",
 
             [Parameter(Mandatory=$False)]
@@ -98,6 +100,7 @@
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
+            [Alias('OSDVN_End')]
             [String]$OSDVariableName_End = "$($OSDVariablePrefix)OSDEndTime",
 
             [Parameter(Mandatory=$False)]
@@ -112,11 +115,13 @@
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
             [ValidateScript({($_ -iin ([System.TimeZoneInfo]::GetSystemTimeZones().ID | Sort-Object))})]
+            [Alias('DTZID')]
             [String]$DestinationTimeZoneID = "Eastern Standard Time",
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
             [ValidateScript({($_ -iin ([System.TimeZoneInfo]::GetSystemTimeZones().ID | Sort-Object))})]
+            [Alias('FCTZID')]
             [String]$FinalConversionTimeZoneID = "UTC",
             
             [Parameter(Mandatory=$False)]
@@ -470,9 +475,9 @@ ForEach ($ModuleGroup In $ModuleGroups)
                       $LogMessage = "Attempting to convert the current system time into `"$($FinalConversionTimeZone.DisplayName)`". Please Wait..."
                       Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                      [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
+                      [DateTime]$ConvertedSystemDateTimeFinal = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId(($ConvertedSystemDateTime), ($FinalConversionTimeZone.ID))
                   
-                      [DateTime]$StartTime = $ConvertedSystemDateTimeUTC
+                      [DateTime]$StartTime = $ConvertedSystemDateTimeFinal
                       
                       $TSEnvironment.Value($OSDVariableName_Start) = $StartTime
                       
@@ -505,9 +510,9 @@ ForEach ($ModuleGroup In $ModuleGroups)
                             $LogMessage = "Attempting to convert the current system time into `"$($FinalConversionTimeZone.DisplayName)`". Please Wait..."
                             Write-Verbose -Message "$($LogMessage)" -Verbose
                       
-                            [DateTime]$ConvertedSystemDateTimeUTC = $ConvertedSystemDateTime.ToUniversalTime()
+                            [DateTime]$ConvertedSystemDateTimeFinal = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId(($ConvertedSystemDateTime), ($FinalConversionTimeZone.ID))
                         
-                            [DateTime]$EndTime = $ConvertedSystemDateTimeUTC
+                            [DateTime]$EndTime = $ConvertedSystemDateTimeFinal
                             
                             $TSEnvironment.Value($OSDVariableName_End) = $EndTime
                             
