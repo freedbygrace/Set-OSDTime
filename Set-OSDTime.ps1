@@ -83,9 +83,9 @@
         (        	     
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
-            [ValidateScript({($_ -imatch '^.*\_$')})]
+            [ValidateScript({($_ -imatch '^.*_$')})]
             [Alias('OSDVP')]
-            [String]$OSDVariablePrefix = "CustomOSDInfo_",
+            [String]$OSDVariablePrefix = "XOSDInfo_",
             
             [Parameter(Mandatory=$False)]
             [Switch]$Start,
@@ -130,9 +130,9 @@
             
             [Parameter(Mandatory=$False)]
             [ValidateNotNullOrEmpty()]
-            [ValidateScript({($_ -imatch '^[a-zA-Z][\:]\\.*?[^\\]$')})]
+            [ValidateScript({($_ -imatch '^[a-zA-Z][\:]\\.*?[^\\]$') -or ($_ -imatch "^\\(?:\\[^<>:`"/\\|?*]+)+$")})]
             [Alias('LogPath')]
-            [System.IO.DirectoryInfo]$LogDir = "$($Env:Windir)\Logs\Software\Set-OSDTime",
+            [System.IO.DirectoryInfo]$LogDir,
             
             [Parameter(Mandatory=$False)]
             [Switch]$ContinueOnError
@@ -160,7 +160,6 @@
   $DateTimeFileFormat = 'yyyyMMdd_hhmmsstt'  ###20190403_115354AM###
   [ScriptBlock]$GetCurrentDateTimeFileFormat = {(Get-Date).ToString($DateTimeFileFormat)}
   [System.IO.FileInfo]$ScriptPath = "$($MyInvocation.MyCommand.Definition)"
-  [System.IO.FileInfo]$ScriptLogPath = "$($LogDir.FullName)\$($ScriptPath.BaseName)_$($GetCurrentDateTimeFileFormat.Invoke()).log"
   [System.IO.DirectoryInfo]$ScriptDirectory = "$($ScriptPath.Directory.FullName)"
   [System.IO.DirectoryInfo]$FunctionsDirectory = "$($ScriptDirectory.FullName)\Functions"
   [System.IO.DirectoryInfo]$ModulesDirectory = "$($ScriptDirectory.FullName)\Modules"
@@ -192,10 +191,35 @@
         $IsRunningTaskSequence = $False
     }
 
+#Determine the default logging path if the parameter is not specified and is not assigned a default value
+  If (($PSBoundParameters.ContainsKey('LogDir') -eq $False) -and ($LogDir -ieq $Null))
+    {
+        If ($IsRunningTaskSequence -eq $True)
+          {
+              [String]$_SMSTSLogPath = "$($TSEnvironment.Value('_SMSTSLogPath'))"
+                    
+              If ([String]::IsNullOrEmpty($_SMSTSLogPath) -eq $False)
+                {
+                    [System.IO.DirectoryInfo]$TSLogDirectory = "$($_SMSTSLogPath)"
+                }
+              Else
+                {
+                    [System.IO.DirectoryInfo]$TSLogDirectory = "$($Env:Windir)\Temp\SMSTSLog"
+                }
+                     
+              [System.IO.DirectoryInfo]$LogDir = "$($TSLogDirectory.FullName)\$($ScriptPath.BaseName)"
+          }
+        ElseIf ($IsRunningTaskSequence -eq $False)
+          {
+              [System.IO.DirectoryInfo]$LogDir = "$($Env:Windir)\Logs\Software\$($ScriptPath.BaseName)"
+          }
+    }
+
 #Start transcripting (Logging)
   Try
     {
-        If ($LogDir.Exists -eq $False) {[Void][System.IO.Directory]::CreateDirectory($LogDir.FullName)}
+        [System.IO.FileInfo]$ScriptLogPath = "$($LogDir.FullName)\$($ScriptPath.BaseName)_$($GetCurrentDateTimeFileFormat.Invoke()).log"
+        If ($ScriptLogPath.Directory.Exists -eq $False) {[Void][System.IO.Directory]::CreateDirectory($ScriptLogPath.Directory.FullName)}
         Start-Transcript -Path "$($ScriptLogPath.FullName)" -IncludeInvocationHeader -Force -Verbose
     }
   Catch
@@ -344,12 +368,27 @@ ForEach ($ModuleGroup In $ModuleGroups)
                       
                               If ($OriginalTimeZone.ID -ine $DestinationTimeZoneID) {$SetTimeZone = Set-TimeZone -Id "$($DestinationTimeZone.ID)" -PassThru}
                           }
-                        Else
+                        ElseIf ($IsWindowsPE -eq $False)
                           {
                               $LogMessage = "[WindowsPE Not Detected] - No additional changes are required to allow time synchronization to occur."
                               Write-Verbose -Message "$($LogMessage)" -Verbose
 
-                              $LogMessage = "[Current Operating System] - $($OperatingSystem.Caption -ireplace "(Microsoft)\s", '') [Version: $($OperatingSystem.Version.ToString())]"
+                              $OperatingSystemDetails = Get-Item -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion"
+                              
+                              [String]$OperatingSystemReleaseID = $OperatingSystemDetails.GetValue('ReleaseID')
+
+                              [String]$OperatingSystemUBR = $OperatingSystemDetails.GetValue('UBR')
+                          
+                              If ([String]::IsNullOrEmpty($OperatingSystemUBR) -eq $False)
+                                {
+                                    $OperatingSystemImageVersion = "$($OperatingSystem.Version).$($OperatingSystemUBR)"
+                                }
+                              Else
+                                {
+                                    $OperatingSystemImageVersion = "$($OperatingSystem.Version)"
+                                }
+
+                              $LogMessage = "[Current Operating System] - $($OperatingSystem.Caption -ireplace "(Microsoft)\s", '') $($OperatingSystemReleaseID) [Version: $($OperatingSystemImageVersion)]"
                               Write-Verbose -Message "$($LogMessage)" -Verbose
                           }
                                            
